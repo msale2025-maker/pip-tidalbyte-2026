@@ -17,13 +17,18 @@ API_KEY = os.getenv("NVIDIA_API_KEY", "").strip()
 BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
 
 # Reasoning model: diagnosis + syllabus extraction (Super VL or Ultra)
-REASONING_MODEL = os.getenv("LEVER_REASONING_MODEL", "nvidia/nemotron-3-super-120b-a12b")
+def _env(name: str, default: str = "") -> str:
+    """PIP_<name>, falling back to the old LEVER_<name> so older .env files keep working."""
+    return os.getenv(f"PIP_{name}") or os.getenv(f"LEVER_{name}") or default
+
+
+REASONING_MODEL = _env("REASONING_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")
 # Fast model: tool calls / actions (Lightning)
-FAST_MODEL = os.getenv("LEVER_FAST_MODEL", "nvidia/nemotron-3-nano-30b-a3b")
+FAST_MODEL = _env("FAST_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b")
 # Content-safety model
-SAFETY_MODEL = os.getenv("LEVER_SAFETY_MODEL", "nvidia/llama-3.1-nemoguard-8b-content-safety")
+SAFETY_MODEL = _env("SAFETY_MODEL", "nvidia/llama-3.1-nemotron-safety-guard-8b-v3")
 # Speech-to-text model (optional; voice check-ins)
-ASR_MODEL = os.getenv("LEVER_ASR_MODEL", "")
+ASR_MODEL = _env("ASR_MODEL", "")
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)

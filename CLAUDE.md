@@ -1,4 +1,4 @@
-# CLAUDE.md: Lever / Pip (tidalBYTE '26 hackathon)
+# CLAUDE.md: Pip (repo: pip-tidalbyte-2026, tidalBYTE '26 hackathon)
 
 Handoff context from a planning chat. Read this before changing anything.
 
@@ -30,6 +30,11 @@ Each strategy card shows a discipline badge. Seven fields: Psychology (TMT, self
 - **Simplified for ADHD users**: tabs are only "Check in" and "My week". The science is a pop-up (`science_dialog`, `@st.dialog`) opened from a small "The science behind Pip" link at the bottom of the sidebar. "Test Nemotron connection" lives in Settings → Advanced. The "big goal / why are you in college" field is gone (we don't assume college; it didn't help anyone get unstuck); replaced by "When do you focus best?" pills (Morning/Afternoon/Evening/Late night) → `agent.run(..., focus_time=)` so focus blocks/check-ins land at good times. Prompts say "student", not "college student".
 - **tidalBYTE easter eggs** (Pebble the penguin, tidalBYTE's mascot; icon from f26.tidaltamu.com saved as `assets/pebble.png`): footer "tidalBYTE '26" links to https://f26.tidaltamu.com/ (new tab); hovering the footer pill makes Pebble peek out ("Hi! I'm Pebble from tidalBYTE!"); typing "pebble" in the check-in box makes Pebble waddle across the waves; tapping Pip 5 times fast makes Pebble pop up ("Pip's my best friend!"). fx.js clones the footer's Pebble image. Reminder: NO tag-like text anywhere in fx.js, even in comments (a comment containing an img tag silently killed the whole script).
 - **Narrow screens**: under 900px the page gets extra top padding so the fixed Sound / expand-sidebar buttons never cover the title; under 600px Sound shows only its icon; above 900px the h1 keeps 9.5rem free on the right for the Sound button. "unstuck" is `white-space: nowrap` (its per-letter wiggle spans otherwise let the browser break mid-word). Dizzy Pip has real Archimedean spiral eyes (`mascot._spiral`).
+- **Title**: two lines, "Hey {name}," (0.62em) + "Let's get unstuck", in the original Fredoka (user tried Lexend, wanted Fredoka back). Main container has 4.4rem top padding at every width, so the corner buttons never cover it. Don't change the "Pip." logo; it has 1.1rem space below it.
+- **Corner waves**: `ui.corner_waves_html` draws 6 see-through wave layers (each path bleeds 400 units past the top/right of the screen and the box isn't clipped, so the breathing animation never shows a straight edge) flowing down from the top-right corner (same colours/opacity as the bottom waves, gently "breathing"), placed where the user sketched them.
+- "Our story" + "The science behind Pip" links sit together in `st.container(key="about_links")` with no gap.
+- **Focus timer (Pomodoro)**: built entirely in fx.js with DOM calls (`.pt-btn` sits just left of the Sound button, `.pt-panel` below it). Presets 15/3, 25/5, 50/10; every 4th break is 15 min; breaks auto-start, focus rounds wait for you; chime + haptics + a speech pop when a round ends; countdown shown in the browser-tab title; state in localStorage so it survives reloads.
+- **Our story** pop-up (`story_dialog`, sidebar link above "The science behind Pip"): founders Ava and Rana's mission statement ("help every distracted brain take back its attention, one tiny step at a time"), also in README → Inspiration.
 - **Top-right corner = volume button** (`st.container(key="vol_corner")` → `.st-key-vol_corner` is fixed via CSS): popover with Mute everything, Click sounds volume, Focus sounds volume. No "Pip" pill there (user removed it).
 - **Waves**: back along the bottom only (user disliked full-page waves): 5 layers that drift sideways at different speeds AND swell up/down (`.wl` wrapper = swell, `.wave` svg = drift).
 - **Footer** is a plain rounded pill (user removed the cloud bumps) **fixed** at the bottom centre of the screen, gently floating: "Pip · made with [pink heart] by two ADHD brains at tidalBYTE '26".
@@ -64,13 +69,19 @@ Each strategy card shows a discipline badge. Seven fields: Psychology (TMT, self
 
 ## Nemotron setup (status as of ~1:40 PM)
 - Using the free hosted API: `NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1`, key in `.env` (never commit it; `.env` is gitignored).
-- Model IDs, confirmed from the account's `/v1/models` list:
-  - `LEVER_REASONING_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b` (diagnosis + syllabus)
-  - `LEVER_FAST_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b` (tool calls)
-  - `LEVER_SAFETY_MODEL=nvidia/llama-3.1-nemotron-safety-guard-8b-v3` (`nvidia/nemotron-3.5-content-safety` is listed but returns 404; the old nemoguard content-safety ID returns 410)
+- Model IDs, confirmed from the account's `/v1/models` list (env vars are `PIP_*`; old `LEVER_*` names still work via `config._env`):
+  - `PIP_REASONING_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b` (diagnosis + syllabus)
+  - `PIP_FAST_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b` (tool calls)
+  - `PIP_SAFETY_MODEL=nvidia/llama-3.1-nemotron-safety-guard-8b-v3` (`nvidia/nemotron-3.5-content-safety` is listed but returns 404; the old nemoguard content-safety ID returns 410)
   - Ultra (`nvidia/nemotron-3-ultra-550b-a55b`) is available but skipped for latency.
 - **Known issue:** chat calls returned **HTTP 403** on Super VL and Lightning. It's a widespread NVIDIA account problem ("Public API Endpoints" permission). Fixes tried/suggested: new key generated from a model page's "Get API Key", teammate's key, ask NVIDIA at the event / #nemotron-models Discord. Fallback: OpenRouter (set `NVIDIA_BASE_URL=https://openrouter.ai/api/v1`, OpenRouter key, OpenRouter model IDs). Check the sidebar's "Test Nemotron connection" for current status.
 - Budget: the $50 is **Brev** credit (cloud machines), not API. We run locally; no Brev needed. Avoid GPU instances.
+
+## Eval + README (for judging)
+- `eval/run_eval.py` + `eval/cases.json`: 16 labelled check-ins (4 per lever), 6 safety cases (incl. "going to kill me lol" false-alarm checks), 8 end-to-end acting runs. Writes `eval/results.md/json` (temp data dir, app data untouched). Last run (Nov 21, 18:30): diagnosis 16/16, JSON 16/16, distress 4/4 (2 by the Nemotron model alone), false alarms 0/2, required tool called 8/8 (1 via self-correction nudge), median 9.0s / 15.5s.
+- `agent.act` self-correction: if the fast model replies without calling the required tool, it is told once to call it (trace shows "(nudge)"), then the guaranteed fallback.
+- The science pop-up shows "Pip's report card" from `eval/results.json`.
+- README is structured as the Devpost story (Inspiration → What's next) + "How Pip uses Nemotron" + eval table + interdisciplinary table + judging-criteria map. User asked: NO demo script in the README.
 
 ## Run
 ```bash

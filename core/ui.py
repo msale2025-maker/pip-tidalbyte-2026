@@ -8,6 +8,7 @@ Readability choices (British Dyslexia Association style guide + WCAG):
 """
 import base64
 import json
+import math
 import random
 from urllib.parse import quote
 from html import escape
@@ -19,6 +20,37 @@ _WAVE = "M0 60 C150 100 350 20 600 60 C850 100 1050 20 1200 60 C1350 100 1550 20
 _FX_JS = (Path(__file__).parent / "fx.js").read_text()
 
 
+def _corner_wave_path(x0: float, y1: float, amp: float, waves: float, phase: float, w=800) -> str:
+    """A layer filling the top-right corner, whose edge is a wavy line from (x0, 0) to (w, y1)."""
+    dx, dy = w - x0, y1
+    ln = math.hypot(dx, dy)
+    nx, ny = -dy / ln, dx / ln  # perpendicular, pointing down-left (away from the corner)
+    pts = []
+    for i in range(61):
+        t = i / 60
+        off = amp * math.sin(2 * math.pi * waves * t + phase) * math.sin(math.pi * t) ** 0.7
+        pts.append((x0 + dx * t + nx * off, dy * t + ny * off))
+    # Bleed far past the top and right of the screen, so when a layer breathes/rotates you only
+    # ever see its wavy edge, never a straight side.
+    bleed = 400
+    ex, ey = w + bleed, y1 + bleed * dy / dx  # keep going along the edge's direction, off-screen
+    return (f"M{x0:.0f} {-bleed} L{x0:.0f} 0 " + " ".join(f"L{x:.1f} {y:.1f}" for x, y in pts)
+            + f" L{ex:.0f} {ey:.0f} L{ex:.0f} {-bleed} Z")
+
+
+def corner_waves_html(dark: bool = False) -> str:
+    """Soft wave layers flowing down from the top-right corner (same colours/opacity as the bottom waves)."""
+    p = DARK if dark else LIGHT
+    k = 0.5 if dark else 1.0
+    layers = [(20, 475, 26, 2.3, 0.0, p["wave_a"], .14), (160, 415, 24, 2.1, 1.3, p["wave_b"], .07),
+              (290, 350, 22, 1.9, 2.4, p["wave_a"], .20), (415, 280, 20, 1.7, .7, p["wave_b"], .09),
+              (540, 205, 17, 1.6, 1.9, p["wave_a"], .25), (665, 120, 13, 1.4, 3.0, p["wave_b"], .12)]
+    gs = "".join(f'<g class="cw cw{i}"><path d="{_corner_wave_path(x0, y1, a, n, ph)}" fill="{c}" opacity="{op * k:.3f}"/></g>'
+                 for i, (x0, y1, a, n, ph, c, op) in enumerate(layers))
+    return (f'<div class="corner-waves" aria-hidden="true"><svg viewBox="0 0 800 480" preserveAspectRatio="none" '
+            f'width="100%" height="100%">{gs}</svg></div>')
+
+
 def waves_html(dark: bool = False, big: bool = False) -> str:
     """Gentle waves along the bottom: 5 layers that drift sideways AND swell up and down."""
     p = DARK if dark else LIGHT
@@ -26,7 +58,7 @@ def waves_html(dark: bool = False, big: bool = False) -> str:
         f'<div class="wl {cls}"><svg class="wave" viewBox="0 0 2400 140" preserveAspectRatio="none" aria-hidden="true">'
         f'<path d="{_WAVE}" fill="{color}" opacity="{op}"/></svg></div>')
     a, b = (0.22, 0.10) if dark else (0.35, 0.10)
-    return (f'<div class="waves{" big" if big else ""}" aria-hidden="true">'
+    return corner_waves_html(dark) + (f'<div class="waves{" big" if big else ""}" aria-hidden="true">'
             + layer("w5", p["wave_b"], b * 0.6) + layer("w1", p["wave_a"], a) + layer("w4", p["wave_a"], a * 0.55)
             + layer("w2", p["wave_b"], b) + layer("w3", p["wave_a"], a * 0.7) + "</div>")
 
@@ -95,7 +127,8 @@ def thinking_html(seconds: int) -> str:
 
 def title_html(name: str) -> str:
     word = "".join(f'<span class="wig" style="--i:{i}">{c}</span>' for i, c in enumerate("unstuck"))
-    return f'<h1>Hey {escape(name)}, let\'s get <span class="hl">{word}</span></h1>'
+    return (f'<h1 class="title"><span class="greet">Hey {escape(name)},</span>'
+            f'Let\'s get <span class="hl">{word}</span></h1>')
 
 
 def css(easy_read: bool = False, still: bool = False, dark: bool = False) -> str:
@@ -137,7 +170,7 @@ h1, h2, h3, h4 {{ font-family: 'Fredoka', 'Lexend', sans-serif !important; color
 [data-testid="stExpandSidebarButton"]:hover {{ transform: scale(1.08); }}
 @keyframes nudge {{ 0%, 80%, 100% {{ transform: translateX(0); }} 87% {{ transform: translateX(4px); }} 93% {{ transform: translateX(0); }} }}
 [data-testid="stMainBlockContainer"], .block-container {{ position: relative; z-index: 0;
-  padding-top: 1rem !important; padding-bottom: 4.5rem !important; }}
+  padding-top: 4.4rem !important; padding-bottom: 4.5rem !important; }}
 /* the invisible style / waves / script elements shouldn't take up layout space */
 [data-testid="stElementContainer"]:has(style), [data-testid="stElementContainer"]:has(.waves),
 [data-testid="stElementContainer"]:has(script), .stHtml:has(script) {{ position: absolute !important; height: 0 !important;
@@ -145,6 +178,9 @@ h1, h2, h3, h4 {{ font-family: 'Fredoka', 'Lexend', sans-serif !important; color
 [data-testid="stSidebarHeader"] {{ position: absolute !important; top: 0; right: 0; height: auto !important;
   padding: .5rem .6rem 0 0 !important; z-index: 5; background: transparent !important; }}
 .stApp h1 {{ padding-top: 0 !important; margin-top: 0 !important; font-size: 2.3rem; }}
+.stApp h1.title {{ line-height: 1.15; margin-bottom: .4rem !important; }}
+.stApp h1.title .greet {{ display: block; font-size: .62em; font-weight: 500; letter-spacing: .02em; opacity: .8;
+  margin-bottom: .3rem; }}
 .hl {{ background: linear-gradient(transparent 58%, {BU} 58%, {BU} 92%, transparent 92%);
   padding: 0 .12em; border-radius: 4px; color: inherit; -webkit-box-decoration-break: clone; }}
 {".stApp .hl, .stApp .hl .wig { background: none; color: " + BU + " !important; padding: 0; }" if dark else ""}
@@ -165,6 +201,17 @@ h1, h2, h3, h4 {{ font-family: 'Fredoka', 'Lexend', sans-serif !important; color
 .wl.w3 {{ height: 65%; animation-duration: 7s; animation-delay: -5s; }} .wl.w3 .wave {{ animation-duration: 22s; }}
 .wl.w4 {{ height: 48%; animation-duration: 8.5s; animation-delay: -1.5s; }} .wl.w4 .wave {{ animation-duration: 34s; animation-direction: reverse; }}
 .wl.w5 {{ height: 125%; animation-duration: 13s; animation-delay: -7s; }} .wl.w5 .wave {{ animation-duration: 55s; }}
+/* corner waves (top right): each layer breathes out from the corner at its own pace */
+.corner-waves {{ position: fixed; top: 0; right: 0; width: min(50vw, 820px); height: min(46vh, 440px); z-index: -1;
+  pointer-events: none; overflow: visible; }}
+.corner-waves svg {{ display: block; overflow: visible; }}
+.cw {{ transform-box: view-box; transform-origin: 800px 0; animation: cwave 11s ease-in-out infinite alternate; }}
+.cw1 {{ animation-duration: 14s; animation-delay: -4s; }} .cw2 {{ animation-duration: 9s; animation-delay: -2s; }}
+.cw3 {{ animation-duration: 12s; animation-delay: -6s; }} .cw4 {{ animation-duration: 8s; animation-delay: -1s; }}
+.cw5 {{ animation-duration: 10s; animation-delay: -3s; }}
+@keyframes cwave {{ 0% {{ transform: scale(1) rotate(0deg); }} 50% {{ transform: scale(1.045) rotate(-1.6deg); }}
+  100% {{ transform: scale(.985) rotate(1.2deg); }} }}
+.waves.big ~ .corner-waves .cw, .corner-waves.big .cw {{ animation-duration: 5s; }}
 @keyframes swell {{ 0%, 100% {{ transform: translateY(0) scaleY(1); }} 50% {{ transform: translateY(-6px) scaleY(1.12); }} }}
 @keyframes drift {{ from {{ transform: translateX(0); }} to {{ transform: translateX(-50%); }} }}
 
@@ -318,20 +365,64 @@ svg.pip .pip-hop {{ transform-box: view-box; transform-origin: 100px 190px; }}
 .waves.big {{ height: 240px; }} .waves.big .wave {{ animation-duration: 14s !important; }} .waves.big .wl {{ animation-duration: 5s; }}
 
 /* ---------- Pip branding ---------- */
-.brand {{ display: flex; align-items: center; gap: .55rem; margin: -.2rem 0 .3rem 0; }}
+.brand {{ display: flex; align-items: center; gap: .55rem; margin: -.2rem 0 1.1rem 0; }}
 .brand svg.pip {{ animation-duration: 3s; flex: none; margin: 0 !important; }}
 .brand-name {{ font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 2rem; line-height: 1; color: {T}; }}
 .brand-name .dot {{ color: {BU}; -webkit-text-stroke: 1.5px {A}; }}
 /* narrow screens: push the title below the fixed corner buttons; Sound shrinks to just its icon */
 @media (max-width: 900px) {{
-  [data-testid="stMainBlockContainer"], .block-container {{ padding-top: 3.9rem !important; }}
+  [data-testid="stMainBlockContainer"], .block-container {{ padding-top: 4.2rem !important; }}
 }}
-@media (min-width: 901px) {{ .stApp h1 {{ padding-right: 9.5rem !important; }} }}  /* room for the Sound button */
 @media (max-width: 600px) {{
   .st-key-vol_corner button [data-testid="stMarkdownContainer"] {{ display: none !important; }}
   .st-key-vol_corner button {{ padding: .35rem .7rem !important; }}
-  .stApp h1 {{ font-size: 1.85rem; }}
+  .stApp h1, .stApp h1.title {{ font-size: 1.8rem; }}
+  .pt-btn .pt-lbl {{ display: none; }}
 }}
+/* ---------- focus timer (built by fx.js, sits left of the Sound button) ---------- */
+.pt-btn {{ position: fixed; top: .55rem; right: 9rem; z-index: 999990; display: inline-flex; align-items: center; gap: 7px;
+  border-radius: 999px; border: 2px solid {A}; background: {S}; color: {T}; font-family: 'Lexend', sans-serif;
+  font-weight: 600; font-size: 15px; padding: .32rem .95rem; box-shadow: 0 4px 12px {SH}; cursor: pointer;
+  transition: transform .12s ease, background .2s ease; }}
+.pt-btn:hover {{ background: {BU}; color: {OBU}; }} .pt-btn:active {{ transform: scale(.95); }}
+.pt-btn.running {{ background: {BU}; color: {OBU}; font-variant-numeric: tabular-nums; }}
+.pt-btn.break {{ background: color-mix(in srgb, #C3EDDB 70%, {S}); color: #34568B; }}
+.pt-ic {{ position: relative; width: 15px; height: 15px; border: 2px solid currentColor; border-radius: 50%; flex: none; }}
+.pt-ic::after {{ content: ""; position: absolute; left: 50%; top: 1px; width: 2px; height: 5px; margin-left: -1px;
+  background: currentColor; border-radius: 2px; transform-origin: 50% 100%; }}
+.pt-btn.running .pt-ic::after {{ animation: sweep 2s steps(8) infinite; }}
+.pt-panel {{ position: fixed; top: 3.6rem; right: 1rem; z-index: 999991; width: 280px; background: {S}; color: {T};
+  border: 2px solid {A}; border-top: 8px solid {BU}; border-radius: 24px; padding: 14px 16px 12px; box-shadow: 0 14px 30px {SH};
+  font-family: 'Lexend', sans-serif; animation: popin .2s ease-out; text-align: center; }}
+.pt-panel[hidden] {{ display: none !important; }}
+.pt-mode {{ font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 1.05rem; }}
+.pt-ring {{ --p: 0; width: 150px; height: 150px; margin: 8px auto 10px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; background: conic-gradient({A} calc(var(--p) * 1%), {L} 0); }}
+.pt-panel.break .pt-ring {{ background: conic-gradient(#6CC9A1 calc(var(--p) * 1%), {L} 0); }}
+.pt-time {{ width: 124px; height: 124px; border-radius: 50%; background: {S}; display: flex; align-items: center; justify-content: center;
+  font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 2.1rem; font-variant-numeric: tabular-nums; }}
+.pt-presets {{ display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; }}
+.pt-pre, .pt-small, .pt-start {{ font-family: 'Lexend', sans-serif; border-radius: 999px; cursor: pointer; color: {T};
+  border: 2px solid {L}; background: {BG}; padding: 3px 10px; font-size: 13px; font-weight: 600; }}
+.pt-pre {{ white-space: nowrap; padding: 3px 14px; }}
+.pt-pre.on {{ background: {BU}; border-color: {A}; color: {OBU}; }}
+.pt-row {{ display: flex; gap: 8px; justify-content: center; align-items: center; }}
+.pt-start {{ background: {BU}; border-color: {A}; color: {OBU}; font-size: 15px; padding: 6px 22px; }}
+.pt-small {{ font-weight: 500; }}
+.pt-dots {{ display: flex; gap: 6px; justify-content: center; margin: 10px 0 4px; }}
+.pt-dots i {{ width: 10px; height: 10px; border-radius: 50%; border: 2px solid {A}; }}
+.pt-dots i.on {{ background: {BU}; }}
+.pt-hint {{ font-size: 11.5px; opacity: .7; line-height: 1.4; }}
+
+/* ---------- Our story ---------- */
+.story {{ display: flex; gap: 22px; align-items: flex-start; }}
+.story svg.pip {{ flex: none; margin: 0 !important; }}
+.story p {{ margin: 0 0 .8rem 0; }}
+.story .mission {{ font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 1.2rem; background: {BU}; color: {OBU} !important;
+  border: 2px solid {A}; border-radius: 18px; padding: 10px 14px; margin: .4rem 0 1rem; }}
+.story .sign {{ font-family: 'Fredoka', sans-serif; font-weight: 600; }}
+@media (max-width: 700px) {{ .story {{ flex-direction: column; align-items: center; }} }}
+
 /* volume button in the top-right corner */
 .st-key-vol_corner {{ position: fixed !important; top: .55rem; right: 1rem; z-index: 999990; width: auto !important; }}
 .st-key-vol_corner button {{ border-radius: 999px !important; border: 2px solid {A} !important; background: {S} !important;
@@ -344,10 +435,11 @@ svg.pip .pip-hop {{ transform-box: view-box; transform-origin: 100px 190px; }}
   padding: 3px 14px !important; min-height: 0 !important; font-size: .85em !important; margin: 2px 0 8px; }}
 .stApp .st-key-dl_past button:hover, .stApp .st-key-dl_more button:hover, .stApp .st-key-dl_less button:hover {{
   border-color: {A} !important; background: {S} !important; }}
-.stApp .st-key-sci_btn button {{ background: transparent !important; border: none !important; box-shadow: none !important;
+.st-key-about_links {{ gap: 0 !important; }}
+.stApp .st-key-story_btn button, .stApp .st-key-sci_btn button {{ background: transparent !important; border: none !important; box-shadow: none !important;
   padding: 2px 6px !important; min-height: 0 !important; font-size: .82em !important; font-weight: 500 !important; opacity: .8; }}
-.stApp .st-key-sci_btn button:hover {{ opacity: 1; background: transparent !important; }}
-.stApp .st-key-sci_btn button p {{ font-size: 1em !important; }}
+.stApp .st-key-sci_btn button:hover, .stApp .st-key-story_btn button:hover {{ opacity: 1; background: transparent !important; }}
+.stApp .st-key-sci_btn button p, .stApp .st-key-story_btn button p {{ font-size: 1em !important; }}
 .badge.nemo {{ display: inline-flex; align-items: center; justify-content: center; text-align: center !important;
   padding: 5px 16px; line-height: 1.25; margin: 0; }}
 /* footer: a little cloud fixed at the very bottom */
@@ -533,6 +625,15 @@ svg.pip .pip-hop {{ transform-box: view-box; transform-origin: 100px 190px; }}
 .dl-pill i {{ width: 8px; height: 8px; border-radius: 50%; background: {A}; animation: ping 1.4s ease-out infinite; }}
 @media (max-width: 760px) {{ .dl {{ grid-template-columns: 1fr auto; }} .dl-chip, .dl-due {{ display: none; }} }}
 
+/* ---------- Pip's report card (eval results) ---------- */
+.report {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 6px; }}
+.rc {{ background: color-mix(in srgb, var(--lc) {18 if dark else 32}%, {S}); border: 2px solid var(--lc); border-radius: 18px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }}
+.rc b {{ font-family: 'Fredoka', sans-serif; font-size: 1.7rem; line-height: 1.1; }}
+.rc span {{ font-weight: 600; font-size: .85em; }}
+.rc small {{ font-size: .72em; opacity: .75; }}
+@media (max-width: 760px) {{ .report {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
+
 /* ---------- science tab colours ---------- */
 .lv-card {{ border-top: 8px solid var(--lc) !important; }}
 .lv-card h4 {{ display: inline-block; background: var(--lc); color: #34568B !important; border-radius: 999px; padding: 1px 12px; }}
@@ -624,7 +725,7 @@ svg.pip .pip-hop {{ transform-box: view-box; transform-origin: 100px 190px; }}
 .stButtonGroup button[aria-pressed="true"] {{ background: {BU} !important; border-color: {A} !important; color: {OBU} !important; }}
 .stButtonGroup button * {{ color: inherit !important; }}
 
-@media (prefers-reduced-motion: reduce) {{ .wave, .pip, .amb, svg.pip * {{ animation: none !important; }} }}
+@media (prefers-reduced-motion: reduce) {{ .wave, .wl, .cw, .pip, .amb, svg.pip * {{ animation: none !important; }} }}
 {".amb { display: none; }" if still else ""}
 {motion_off}
 </style>

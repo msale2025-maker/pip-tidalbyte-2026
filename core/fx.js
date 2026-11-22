@@ -343,6 +343,105 @@
     buzz(12);
   }, true);
 
+  // =============== Focus timer (pomodoro): focus, short break, every 4th break longer ===============
+  // Built with DOM calls (no markup strings: Streamlit drops scripts containing tag-like text).
+  SOUNDS.chime = (v) => [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0, 0.5, "sine", 0.18 * v, i * 0.12));
+  const T = { preset: [25, 5], mode: "focus", left: 25 * 60, running: false, end: 0, rounds: 0, brk: 5 };
+  try { Object.assign(T, JSON.parse(localStorage.getItem("pipTimer") || "{}")); } catch (e) {}
+  const save = () => { try { localStorage.setItem("pipTimer", JSON.stringify(T)); } catch (e) {} };
+  const mk = (tag, cls, txt) => { const x = document.createElement(tag); if (cls) x.className = cls; if (txt != null) x.textContent = txt; return x; };
+  const fmt = (sec) => { sec = Math.max(0, Math.ceil(sec)); return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); };
+  const length = () => (T.mode === "focus" ? T.preset[0] : T.brk) * 60;
+  const remaining = () => (T.running ? (T.end - Date.now()) / 1000 : T.left);
+  let tBtn, tPanel, tTime, tMode, tRing, tStart, tDots, tLbl, tPres, baseTitle = document.title, titled = false;
+
+  function timerNote(text) {
+    const r = tBtn.getBoundingClientRect();
+    const b = particle("pip-say", r.left + r.width / 2, r.bottom + 54); b.textContent = text;
+    b.animate([{ transform: "translate(-50%,-100%) scale(.6)", opacity: 0 }, { transform: "translate(-50%,-100%) scale(1)", opacity: 1, offset: .1 },
+      { transform: "translate(-50%,-100%)", opacity: 1, offset: .9 }, { transform: "translate(-50%,-110%)", opacity: 0 }],
+      { duration: 4200, easing: "ease-out" }).onfinish = () => b.remove();
+  }
+  function finish(skipped) {
+    if (T.mode === "focus") {
+      T.rounds += 1; T.mode = "break"; T.brk = T.rounds % 4 === 0 ? 15 : T.preset[1];
+      T.left = T.brk * 60; T.end = Date.now() + T.left * 1000; T.running = true;  // breaks start on their own
+      if (!skipped) { play("chime"); buzz([20, 60, 20, 60, 20]); timerNote(T.brk === 15 ? "4 rounds! Take a long 15-minute break." : "Focus round done! Take a little break."); }
+    } else {
+      T.mode = "focus"; T.left = T.preset[0] * 60; T.running = false;  // the next round waits for you
+      if (!skipped) { play("chime"); buzz([20, 60, 20]); timerNote("Break's over. Ready when you are!"); }
+    }
+    save(); render();
+  }
+  function toggle() {
+    if (T.running) { T.left = remaining(); T.running = false; play("off"); }
+    else { T.end = Date.now() + T.left * 1000; T.running = true; play("on"); buzz(10); }
+    save(); render();
+  }
+  function render() {
+    if (!tBtn) return;
+    const rem = remaining(), pct = Math.min(100, Math.max(0, 100 * (1 - rem / length())));
+    tTime.textContent = fmt(rem);
+    tMode.textContent = T.mode === "focus" ? "Focus time" : (T.brk === 15 ? "Long break" : "Break time");
+    tRing.style.setProperty("--p", pct.toFixed(1));
+    tStart.textContent = T.running ? "Pause" : (rem < length() - 1 ? "Resume" : "Start");
+    const active = T.running || rem < length() - 1;
+    tLbl.textContent = active ? fmt(rem) : "Focus timer";
+    tBtn.classList.toggle("running", T.running && T.mode === "focus");
+    tBtn.classList.toggle("break", T.mode === "break" && active);
+    tPanel.classList.toggle("break", T.mode === "break");
+    tPres.querySelectorAll(".pt-pre").forEach((b) => b.classList.toggle("on", +b.dataset.f === T.preset[0]));
+    tDots.replaceChildren(...[0, 1, 2, 3].map((i) => mk("i", i < T.rounds % 4 ? "on" : "")));
+    if (T.running) { if (!titled) baseTitle = document.title; titled = true; document.title = `${fmt(rem)} · ${T.mode === "focus" ? "Focus" : "Break"} · Pip`; }
+    else if (titled) { titled = false; document.title = baseTitle; }
+  }
+  function placeTimer() {  // sit just left of the Sound button, wherever it is
+    const v = document.querySelector(".st-key-vol_corner");
+    if (!v || !tBtn) return;
+    const r = v.getBoundingClientRect();
+    if (!r.width) return;
+    tBtn.style.right = Math.round(window.innerWidth - r.left + 8) + "px";
+    tBtn.style.top = Math.round(r.top + (r.height - tBtn.offsetHeight) / 2) + "px";
+    tPanel.style.top = Math.round(r.bottom + 10) + "px";
+  }
+  function buildTimer() {
+    document.querySelectorAll(".pt-btn, .pt-panel").forEach((x) => x.remove());
+    tBtn = mk("button", "pt-btn"); tBtn.type = "button"; tBtn.title = "Focus timer (Pomodoro)";
+    tLbl = mk("span", "pt-lbl", "Focus timer"); tBtn.append(mk("span", "pt-ic"), tLbl);
+    tPanel = mk("div", "pt-panel"); tPanel.hidden = true;
+    tMode = mk("div", "pt-mode"); tRing = mk("div", "pt-ring"); tTime = mk("div", "pt-time"); tRing.append(tTime);
+    tPres = mk("div", "pt-presets");
+    [[15, 3], [25, 5], [50, 10]].forEach((p) => { const b = mk("button", "pt-pre", p[0] + "/" + p[1]); b.title = p[0] + " min focus, " + p[1] + " min break"; b.type = "button"; b.dataset.f = p[0]; b.dataset.b = p[1]; tPres.append(b); });
+    const row = mk("div", "pt-row");
+    const reset = mk("button", "pt-small", "Reset"); reset.type = "button";
+    tStart = mk("button", "pt-start", "Start"); tStart.type = "button";
+    const skip = mk("button", "pt-small", "Skip"); skip.type = "button";
+    row.append(reset, tStart, skip);
+    tDots = mk("div", "pt-dots");
+    tPanel.append(tMode, tRing, tPres, row, tDots, mk("div", "pt-hint", "Minutes of focus / break. Every 4th break is a long one, and Pip chimes when it's time."));
+    document.body.append(tBtn, tPanel);
+    tBtn.addEventListener("click", () => { tPanel.hidden = !tPanel.hidden; play("pop"); buzz(8); placeTimer(); });
+    tStart.addEventListener("click", toggle);
+    reset.addEventListener("click", () => { Object.assign(T, { mode: "focus", running: false, rounds: 0 }); T.left = T.preset[0] * 60; play("off"); save(); render(); });
+    skip.addEventListener("click", () => { play("tick"); finish(true); });
+    tPres.addEventListener("click", (e) => {
+      const b = e.target.closest(".pt-pre"); if (!b) return;
+      T.preset = [+b.dataset.f, +b.dataset.b]; Object.assign(T, { mode: "focus", running: false }); T.left = T.preset[0] * 60;
+      play("tick"); save(); render();
+    });
+    document.addEventListener("pointerdown", (e) => {
+      if (!tPanel.hidden && !tPanel.contains(e.target) && !tBtn.contains(e.target)) tPanel.hidden = true;
+    }, true);
+    render(); placeTimer();
+  }
+  setInterval(() => {
+    if (!tBtn || !tBtn.isConnected) buildTimer();
+    if (T.running && remaining() <= 0) finish(false);
+    if (T.running || !tPanel.hidden) render();
+    placeTimer();
+  }, 250);
+  buildTimer();
+
   W.__pipFxApply = applyAmbient;
   W.__pipAmbKind = () => (amb ? amb.kind + ":" + amb.c.state : "none");
   applyAmbient();

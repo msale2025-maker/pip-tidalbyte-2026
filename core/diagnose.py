@@ -6,7 +6,7 @@ from . import config
 from .nemotron import Nemotron
 from .science import LEVERS
 
-SYSTEM = """You are the reasoning core of Lever, a kind study buddy for students,
+SYSTEM = """You are the reasoning core of Pip, a kind study buddy for students,
 many of whom have ADHD. You diagnose WHY a student is stuck using Temporal Motivation Theory
 (Steel, 2007): Motivation = (Expectancy x Value) / (Impulsiveness x Delay).
 

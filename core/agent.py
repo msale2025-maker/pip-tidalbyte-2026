@@ -58,8 +58,8 @@ def act(client: Nemotron, diag, strategy, goal, deadlines, focus_time=""):
             "task": task, "goal": goal or None, "best_focus_time": focus_time or None, "diagnosis": diag["scores"], "evidence": diag.get("evidence"),
             "deadlines": (deadlines or [])[:10]})},
     ]
-    final_text = ""
-    for _ in range(3):
+    final_text, nudged = "", False
+    for _ in range(4):
         try:
             msg = client.chat(messages, config.FAST_MODEL, tools=tools.SCHEMAS, temperature=0.4)
         except NemotronError as e:
@@ -67,6 +67,13 @@ def act(client: Nemotron, diag, strategy, goal, deadlines, focus_time=""):
             break
         calls = getattr(msg, "tool_calls", None) or []
         if not calls:
+            done_required = any(t["tool"] == strategy["tool"] and "error" not in t["result"] for t in trace)
+            if not done_required and not nudged:  # self-correction: ask once before falling back
+                nudged = True
+                trace.append({"tool": "(nudge)", "args": "", "result": {"note": f"model answered without calling {strategy['tool']}; asked again"}})
+                messages += [{"role": "assistant", "content": msg.content or ""},
+                             {"role": "user", "content": f"Don't just describe it: call the `{strategy['tool']}` tool now."}]
+                continue
             final_text = msg.content or ""
             break
         messages.append({"role": "assistant", "content": msg.content or "", "tool_calls": [

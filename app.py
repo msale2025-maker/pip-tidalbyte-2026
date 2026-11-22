@@ -1,4 +1,5 @@
-"""Lever: Pip the study buddy. Run with:  streamlit run app.py"""
+"""Pip: your tiny study buddy (pip-tidalbyte-2026). Run with:  streamlit run app.py"""
+import json
 import threading
 import time
 import zlib
@@ -135,8 +136,11 @@ with st.sidebar:
         st.markdown('<div class="nemo-wrap"><span class="badge nemo">Powered by NVIDIA Nemotron</span></div>',
                     unsafe_allow_html=True)
     # the science lives in a pop-up, tucked away (curious people can find it; it's not in the way)
-    if st.button("The science behind Pip", icon=":material/science:", type="tertiary", key="sci_btn", width="stretch"):
-        ss.show_science = True
+    with st.container(key="about_links"):
+        if st.button("Our story", icon=":material/favorite:", type="tertiary", key="story_btn", width="stretch"):
+            ss.show_story = True
+        if st.button("The science behind Pip", icon=":material/science:", type="tertiary", key="sci_btn", width="stretch"):
+            ss.show_science = True
 
 name = ss.get("name") or "friend"
 st.markdown(title_html(name), unsafe_allow_html=True)
@@ -173,7 +177,7 @@ with tab_check:
                 if heard:
                     ss.checkin_text = heard
                 else:
-                    st.caption("Voice needs LEVER_ASR_MODEL set. Type it for now!")
+                    st.caption("Voice needs PIP_ASR_MODEL set. Type it for now!")
         with st.form("checkin_form", border=False):
             st.text_area("What's going on? Be messy. Pip gets it.", key="checkin_text", height=110,
                          placeholder="ugh I have a lab report due Tuesday and I keep opening TikTok instead")
@@ -437,6 +441,19 @@ def science_dialog():
                         f"<p class='muted' style='font-size:.8em;opacity:.6'>{escape(info['cite'])}</p></div>",
                         unsafe_allow_html=True)
 
+    ev = Path(__file__).parent / "eval" / "results.json"
+    if ev.exists():  # Pip's report card: Nemotron's output quality, measured (python eval/run_eval.py)
+        e = json.loads(ev.read_text())["summary"]
+        tiles = [("Right main jam", e["diagnosis"]["top1"], "hand-labelled check-ins", LEVER_COLORS["expectancy"]),
+                 ("Distress routed to help", e["safety"]["distress_caught"], f"false alarms: {e['safety']['false_alarms']}", LEVER_COLORS["value"]),
+                 ("Model called the right tool", e["acting"]["model_called_required_tool"], "end-to-end agent runs", LEVER_COLORS["impulsiveness"]),
+                 ("Valid structured output", e["diagnosis"]["valid_json"], f"median {e['diagnosis']['median_secs']}s per diagnosis", LEVER_COLORS["delay"])]
+        st.markdown("### Pip's report card")
+        st.markdown("<div class='report'>" + "".join(
+            f"<div class='rc' style='--lc:{c}'><b>{escape(v)}</b><span>{escape(t)}</span><small>{escape(sub)}</small></div>"
+            for t, v, sub, c in tiles) + f"</div><p class='muted' style='font-size:.8em'>Measured on {e['date'][:10]} with "
+            f"<code>python eval/run_eval.py</code> against the live Nemotron models.</p>", unsafe_allow_html=True)
+
     st.markdown("### Built by ADHD brains, for ADHD brains")
     st.markdown(card("Design choices", "<ul>"
                      "<li><b>One thing at a time:</b> one diagnosis, one move, one tiny step. No overwhelming task lists.</li>"
@@ -451,6 +468,33 @@ def science_dialog():
 
 if ss.pop("show_science", False):
     science_dialog()
+
+
+# ---------------- Our story (mission statement, from the founders) ----------------
+STORY = [
+    "Hi! We're Ava and Rana, the two ADHD college students behind Pip.",
+    "We care, we put in the effort, and we still get stuck trying to start the \"easy\" or \"basic\" tasks. "
+    "Attention has become one of the most valuable things in the world, and so much of modern life, especially "
+    "endless short-form content, is built to take it from us. We don't think we're the only ones feeling that pull.",
+    "So we made Pip to pull back. Pip helps you figure out why you're stuck, take one tiny step, and put your most "
+    "valuable resources, your attention, time and energy, toward the life you want. Our hope is that it takes a "
+    "little weight off your day and supports your mental health along the way.",
+    "And why a bird? Pip is a shima enaga, a tiny long-tailed tit from Hokkaido, Japan, often called a \"snow fairy.\" "
+    "They're a symbol of purity and serenity. We hope Pip brings you a little serenity, too.",
+]
+
+
+@st.dialog("Our story", width="large")
+def story_dialog():
+    paras = "".join(f"<p>{escape(t)}</p>" for t in STORY[1:])
+    st.markdown(f"<div class='story'>{mascot.svg('happy', 150)}<div><p><b>{escape(STORY[0])}</b></p>"
+                f"<div class='mission'>Our mission: help every distracted brain take back its attention, "
+                f"one tiny step at a time.</div>{paras}<p class='sign'>With love, Ava and Rana {HEART_SVG}</p></div></div>",
+                unsafe_allow_html=True)
+
+
+if ss.pop("show_story", False):
+    story_dialog()
 
 st.markdown(footer_html(), unsafe_allow_html=True)
 

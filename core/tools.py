@@ -30,8 +30,8 @@ def create_calendar_block(title: str, start: str | None = None, minutes: int = 2
     end = dt + timedelta(minutes=int(minutes or 25))
     fmt = "%Y%m%dT%H%M%S"
     ics = "\r\n".join([
-        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Lever//Study Buddy//EN",
-        "BEGIN:VEVENT", f"UID:{uuid.uuid4()}@lever",
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Pip//pip-tidalbyte-2026//EN",
+        "BEGIN:VEVENT", f"UID:{uuid.uuid4()}@pip-tidalbyte-2026",
         f"DTSTAMP:{datetime.now().strftime(fmt)}",
         f"DTSTART:{dt.strftime(fmt)}", f"DTEND:{end.strftime(fmt)}",
         f"SUMMARY:{title}", f"DESCRIPTION:{note.replace(chr(10), ' ')}",

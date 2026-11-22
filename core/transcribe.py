@@ -1,5 +1,5 @@
 """Voice check-ins (stretch goal). Tries an OpenAI-style transcription
-endpoint for the ASR model in LEVER_ASR_MODEL. Check the model page on
+endpoint for the ASR model in PIP_ASR_MODEL. Check the model page on
 build.nvidia.com for the exact API; some speech models use NVIDIA's Riva
 gRPC client instead, so adapt this function if needed."""
 import io

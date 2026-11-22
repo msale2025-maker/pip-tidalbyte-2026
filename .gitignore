@@ -2,3 +2,5 @@
 data/*.json
 data/*.ics
 __pycache__/
+.DS_Store
+.venv/
