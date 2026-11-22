@@ -1,0 +1,11 @@
+[client]
+# "minimal" hides the Deploy button and the developer menu (Pip has its own Settings).
+toolbarMode = "minimal"
+
+[theme]
+base = "light"
+primaryColor = "#4A7BD6"
+backgroundColor = "#EEF5FF"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#34568B"
+font = "sans serif"
